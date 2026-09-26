@@ -1,0 +1,18 @@
+# .NET build output
+bootstrapper-dotnet/bin/
+bootstrapper-dotnet/obj/
+
+# Published bootstrapper artifacts
+dist/
+
+# IDE/user-local files
+.vs/
+.idea/
+*.user
+*.suo
+docs/
+target/
+# Build-time generated embedded bootstrapper assets
+bootstrapper-dotnet/EmbeddedAssets/
+bootstrapper-dotnet/.build/
+.idea/jarRepositories.xml
