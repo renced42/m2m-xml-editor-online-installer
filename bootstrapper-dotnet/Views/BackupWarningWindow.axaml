@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="M2M.XmlEditor.Bootstrapper.Views.BackupWarningWindow"
+        Title="M2M XML EDITOR Online Setup – Adatbiztonsági figyelmeztetés"
+        Width="760" Height="560" MinWidth="680" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="30">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock Text="Telepítés előtti adatbiztonsági ellenőrzés"
+                 FontSize="26" FontWeight="SemiBold" />
+      <TextBlock Text="A telepítés vagy frissítés megkezdése előtt gondoskodjon adatai biztonságáról."
+                 FontSize="15" Opacity="0.78" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Margin="0,22,0,18" Padding="20" CornerRadius="8" Background="#0A000000">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="14">
+          <TextBlock Text="Az adatok biztonsága közös felelősség. Egy alkalmazás telepítése vagy frissítése során ritkán, de előfordulhat váratlan rendszerhiba, lemezhiba, áramkimaradás vagy más olyan esemény, amely adatvesztést okozhat."
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A folytatás előtt készítsen ellenőrzött biztonsági másolatot minden olyan M2M XML EDITOR adatról, amelynek elvesztése problémát jelentene, különösen a konfigurációkról, adatbázisokról, XML-állományokról, tanúsítványokról és egyéb pótolhatatlan állományokról."
+                     TextWrapping="Wrap" FontWeight="SemiBold" />
+          <TextBlock Text="A biztonsági másolat lehetőleg ne ugyanazon a fizikai meghajtón legyen, mint az eredeti adat. Fontos adat esetén ne csak a mentés elkészültét ellenőrizze: időnként győződjön meg arról is, hogy a mentés valóban megnyitható és szükség esetén visszaállítható."
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A telepítő az M2M XML EDITOR verziózott adat- és konfigurációs könyvtárait nem törli, de ez nem helyettesíti a rendszeres, független biztonsági mentést. A mentést célszerű minden telepítés és frissítés előtt elvégezni."
+                     TextWrapping="Wrap" />
+
+          <Border Margin="0,4,0,0" Padding="14" CornerRadius="6" Background="#10007ACC">
+            <TextBlock Text="Jó gyakorlat: legalább két példányban őrizze a fontos adatokat, és az egyik másolat fizikailag vagy logikailag külön helyen legyen."
+                       TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" RowSpacing="16">
+      <CheckBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                x:Name="AcknowledgementCheckBox"
+                Content="Megértettem a fenti figyelmeztetést, és gondoskodtam a szükséges biztonsági mentésről." />
+      <Button Grid.Row="1" Grid.Column="1" Content="Kilépés" MinWidth="110" Click="ExitButton_OnClick" />
+      <Button Grid.Row="1" Grid.Column="2" x:Name="ContinueButton" Content="Tovább" MinWidth="110"
+              IsDefault="True" IsEnabled="False" Click="ContinueButton_OnClick" />
+    </Grid>
+  </Grid>
+</Window>

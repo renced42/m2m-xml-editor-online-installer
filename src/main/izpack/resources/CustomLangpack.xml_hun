@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:langpack version="5.0"
+    xmlns:izpack="http://izpack.org/schema/langpack"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/langpack https://izpack.org/schema/5.0/izpack-langpack-5.0.xsd">
+
+    <!--
+        Célzott felülírás az IzPack beépített magyar nyelvi csomagjához.
+        Az InstallPanel a telepítés befejezésekor újraolvassa a navigációs
+        feliratot; Unicode karakterhivatkozással elkerüljük a Windows
+        kódlapfüggő hibás "Következ?" megjelenést.
+    -->
+    <str id="installer.next" txt="K&#xF6;vetkez&#x151;"/>
+</izpack:langpack>

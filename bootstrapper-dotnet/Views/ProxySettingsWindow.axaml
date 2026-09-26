@@ -1,0 +1,85 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="M2M.XmlEditor.Bootstrapper.Views.ProxySettingsWindow"
+        Title="M2M XML EDITOR Online Setup - Proxy"
+        Width="800" Height="620" MinWidth="600" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized">
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="28,24,28,18" Spacing="0">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Proxy be&#x00E1;ll&#x00ED;t&#x00E1;s" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock Text="A be&#x00E1;ll&#x00ED;t&#x00E1;sokat a GitHub, a let&#x00F6;lt&#x00E9;sek, a MinGit &#x00E9;s a Maven build h&#x00E1;l&#x00F3;zati m&#x0171;veletei haszn&#x00E1;lj&#x00E1;k."
+                     TextWrapping="Wrap" Opacity="0.72" />
+        </StackPanel>
+
+        <Border Margin="0,18,0,0" Padding="16" CornerRadius="8" Background="#0A000000">
+          <StackPanel Spacing="10">
+            <RadioButton x:Name="SystemProxyRadio" GroupName="ProxyMode" Content="Windows rendszerproxy haszn&#x00E1;lata" IsChecked="True" Click="ProxyMode_OnChanged" />
+            <RadioButton x:Name="CustomProxyRadio" GroupName="ProxyMode" Content="Egyedi proxy" Click="ProxyMode_OnChanged" />
+            <RadioButton x:Name="NoProxyRadio" GroupName="ProxyMode" Content="Proxy n&#x00E9;lk&#x00FC;l" Click="ProxyMode_OnChanged" />
+          </StackPanel>
+        </Border>
+
+        <Border Margin="0,14,0,0" Padding="16" CornerRadius="8" Background="#08000000">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Egyedi proxy" FontWeight="SemiBold" />
+            <TextBlock Text="HTTP proxy c&#x00ED;m" />
+            <TextBox x:Name="HttpProxyUrlBox" PlaceholderText="http://proxy.szervezet.hu:8080" />
+
+            <CheckBox x:Name="SameProxyCheckBox" IsChecked="True" Click="SameProxyCheckBox_OnClick">
+              <TextBlock Text="Ugyanaz a proxy HTTP &#x00E9;s HTTPS kapcsolathoz" TextWrapping="Wrap" />
+            </CheckBox>
+
+            <TextBlock Text="HTTPS proxy c&#x00ED;m" />
+            <TextBox x:Name="HttpsProxyUrlBox" PlaceholderText="http://secure-proxy.szervezet.hu:8080" />
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+              <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="Felhaszn&#x00E1;l&#x00F3;n&#x00E9;v" />
+                <TextBox x:Name="UsernameBox" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="Jelsz&#x00F3;" />
+                <TextBox x:Name="PasswordBox" PasswordChar="*" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Margin="0,14,0,0" Padding="16" CornerRadius="8" Background="#08000000">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Proxy kiv&#x00E9;telek" FontWeight="SemiBold" />
+            <TextBlock Text="Az itt megadott hosztok k&#x00F6;zvetlen&#x00FC;l, proxy n&#x00E9;lk&#x00FC;l &#x00E9;rhet&#x0151;k el. A lista g&#x00E9;penk&#x00E9;nt elt&#x00E9;rhet, ez&#x00E9;rt nem tartalmaz be&#x00E9;getett c&#x00E9;ges &#x00E9;rt&#x00E9;ket. Elv&#x00E1;laszt&#x00E1;s: |, vessz&#x0151;, pontosvessz&#x0151; vagy &#x00FA;j sor."
+                       TextWrapping="Wrap" Opacity="0.72" FontSize="12" />
+            <TextBox x:Name="NonProxyHostsBox"
+                     MinHeight="64"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     PlaceholderText="pl. *.belsodomain.hu | localhost | 127.0.0.1" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Margin="0,14,0,0" Spacing="8">
+          <CheckBox x:Name="RememberCheckBox" Content="Proxy be&#x00E1;ll&#x00ED;t&#x00E1;sok &#x00E9;s kiv&#x00E9;telek megjegyz&#x00E9;se" IsChecked="True" />
+          <TextBlock Text="A proxy c&#x00ED;mek, a kiv&#x00E9;telek &#x00E9;s a felhaszn&#x00E1;l&#x00F3;n&#x00E9;v a felhaszn&#x00E1;l&#x00F3;i be&#x00E1;ll&#x00ED;t&#x00E1;sokban, a jelsz&#x00F3; Windows DPAPI-val titkos&#x00ED;tva ker&#x00FC;l t&#x00E1;rol&#x00E1;sra. A megl&#x00E9;v&#x0151; ~/.m2/settings.xml &#x00E1;llom&#x00E1;nyt a bootstrapper nem &#x00ED;rja fel&#x00FC;l."
+                     TextWrapping="Wrap" Opacity="0.65" FontSize="12" />
+          <TextBlock Text="A bootstrapper a .NET h&#x00E1;l&#x00F3;zati k&#x00E9;r&#x00E9;seket &#x00E9;s a MinGitet HTTP/1.1 protokollra r&#x00F6;gz&#x00ED;ti."
+                     TextWrapping="Wrap" Opacity="0.65" FontSize="12" />
+          <TextBlock x:Name="StatusText" Text="" TextWrapping="Wrap" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="1" Padding="28,12,28,16" Background="#08000000">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Button Grid.Column="0" x:Name="TestButton" Content="Kapcsolat ellen&#x0151;rz&#x00E9;se" Click="TestButton_OnClick" />
+        <Button Grid.Column="2" Content="M&#x00E9;gse" Click="CancelButton_OnClick" />
+        <Button Grid.Column="3" x:Name="ContinueButton" Content="Tov&#x00E1;bb" Click="ContinueButton_OnClick" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

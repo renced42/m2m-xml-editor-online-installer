@@ -1,0 +1,16 @@
+{
+  "applicationName": "M2M XML EDITOR",
+  "githubOwner": "nav-gov-hu",
+  "githubRepository": "m2m-xml-editor",
+  "javaMajorVersion": 21,
+  "mavenVersion": "3.9.16",
+  "gitMinVersion": "2.55.0.5",
+  "gitMinDownloadUrl": "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/MinGit-2.55.0.5-64-bit.zip",
+  "gitMinSha256": "56d7b226b7693196cfc71fef26568f536c4a021ab6c37ff2db4287bed908e96e",
+  "versionedBuildArguments": "-DskipTests",
+  "webModuleTarget": "nav-xsd-parser-tool-web/target",
+  "mainClass": "org.springframework.boot.loader.launch.JarLauncher",
+  "cacheDirectoryName": "M2M-XML-EDITOR-Online-Setup",
+  "installerOutputPattern": "M2M-XML-EDITOR-Installer-*.jar",
+  "githubReleasePageSize": 100
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:userinput version="5.0"
+    xmlns:izpack="http://izpack.org/schema/userinput"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/userinput http://izpack.org/schema/5.0/izpack-userinput-5.0.xsd">
+
+    <panel id="finish.options">
+        <field type="title" bold="true" size="1.35" txt="Befejezés"/>
+        <field type="staticText" txt="Az alkalmazás első indításakor a webes setup.html oldalon végezhető el a rendszer konfigurációja."/>
+        <field type="check" variable="RUN_APPLICATION">
+            <spec txt="M2M XML EDITOR indítása" true="true" false="false" set="true"/>
+        </field>
+    </panel>
+
+</izpack:userinput>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:registry version="5.0"
+    xmlns:izpack="http://izpack.org/schema/registry"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/registry http://izpack.org/schema/5.0/izpack-registry-5.0.xsd">
+
+    <pack name="M2M XML EDITOR">
+        <value name="DisplayName"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="$APP_NAME"/>
+        <value name="DisplayVersion"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="$APP_VER"/>
+        <value name="Publisher"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="Nemzeti Adó- és Vámhivatal"/>
+        <value name="InstallLocation"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="$INSTALL_PATH"/>
+        <value name="DisplayIcon"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="$INSTALL_PATH\app.ico"/>
+        <value name="UninstallString"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File &quot;$INSTALL_PATH\Uninstaller\M2M XML EDITOR eltavolitasa.ps1&quot; -InstallPath &quot;$INSTALL_PATH&quot; -AppVersion &quot;$APP_VER&quot;"/>
+        <value name="QuietUninstallString"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               string="powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File &quot;$INSTALL_PATH\Uninstaller\M2M XML EDITOR eltavolitasa.ps1&quot; -InstallPath &quot;$INSTALL_PATH&quot; -AppVersion &quot;$APP_VER&quot;"/>
+        <value name="NoModify"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               dword="1"/>
+        <value name="NoRepair"
+               keypath="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $APP_VER"
+               root="HKCU"
+               dword="1"/>
+    </pack>
+</izpack:registry>

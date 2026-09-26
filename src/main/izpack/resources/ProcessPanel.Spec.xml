@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:processing version="5.0"
+    xmlns:izpack="http://izpack.org/schema/processing"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/processing http://izpack.org/schema/5.0/izpack-processing-5.0.xsd">
+
+    <job name="M2M XML EDITOR indítása">
+        <os family="windows"/>
+        <executefile name="cmd.exe" workingDir="$INSTALL_PATH">
+            <arg>/d</arg>
+            <arg>/c</arg>
+            <arg>start</arg>
+            <arg>""</arg>
+            <arg>"$INSTALL_PATH\M2M XML EDITOR.exe"</arg>
+        </executefile>
+    </job>
+
+    <job name="M2M XML EDITOR indítása">
+        <os family="unix"/>
+        <executefile name="$INSTALL_PATH/M2M XML EDITOR" workingDir="$INSTALL_PATH"/>
+    </job>
+
+    <onFail previous="true" next="false"/>
+    <onSuccess previous="false" next="true"/>
+</izpack:processing>

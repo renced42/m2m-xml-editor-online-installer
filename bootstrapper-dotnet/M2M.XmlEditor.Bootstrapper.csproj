@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <BootstrapperAssemblyName Condition="'$(BundleRuntimeComponents)' == 'true'">M2M-XML-EDITOR-Embedded-Setup</BootstrapperAssemblyName>
+    <BootstrapperAssemblyName Condition="'$(BundleRuntimeComponents)' != 'true'">M2M-XML-EDITOR-Online-Setup</BootstrapperAssemblyName>
+    <AssemblyName>$(BootstrapperAssemblyName)</AssemblyName>
+    <RootNamespace>M2M.XmlEditor.Bootstrapper</RootNamespace>
+    <Version>0.9.18</Version>
+    <Authors>Nemzeti Adó- és Vámhivatal</Authors>
+    <Company>Nemzeti Adó- és Vámhivatal</Company>
+    <Product>M2M XML EDITOR Online Setup</Product>
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+    <BundleRuntimeComponents Condition="'$(BundleRuntimeComponents)' == ''">false</BundleRuntimeComponents>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bootstrapper-dotnet\**;bin\**;obj\**;dist\**;EmbeddedAssets\**;.build\**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaXaml Remove="bootstrapper-dotnet\**\*.axaml;bin\**\*.axaml;obj\**\*.axaml;.build\**\*.axaml;dist\**\*.axaml" />
+    <Compile Remove="bootstrapper-dotnet\**\*.cs;bin\**\*.cs;obj\**\*.cs;.build\**\*.cs;dist\**\*.cs" />
+    <None Remove="bootstrapper-dotnet\**\*;bin\**\*;obj\**\*;.build\**\*;dist\**\*;EmbeddedAssets\**\*" />
+    <Content Remove="bootstrapper-dotnet\**\*;bin\**\*;obj\**\*;.build\**\*;dist\**\*;EmbeddedAssets\**\*" />
+    <AvaloniaResource Include="Assets\**" />
+    <EmbeddedResource Include="bootstrapper.config.json" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.bootstrapper.config.json" />
+    <EmbeddedResource Include="EmbeddedAssets\installer-project.zip" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.installer-project.zip" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\temurin-jdk.zip" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.temurin-jdk.zip" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\apache-maven.zip" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.apache-maven.zip" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\mingit.zip" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.mingit.zip" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\manifest.json" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.manifest.json" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\THIRD-PARTY-NOTICES.txt" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.THIRD-PARTY-NOTICES.txt" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+    <EmbeddedResource Include="EmbeddedAssets\BundledRuntime\third-party-licenses.zip" LogicalName="M2M.XmlEditor.Bootstrapper.Embedded.BundledRuntime.third-party-licenses.zip" Condition="'$(BundleRuntimeComponents)' == 'true'" />
+  </ItemGroup>
+  <Target Name="PrepareEmbeddedAssets" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\prepare-embedded-assets.ps1&quot;" />
+  </Target>
+</Project>

@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="M2M.XmlEditor.Bootstrapper.Views.ScopeSelectionWindow"
+        Title="M2M XML EDITOR – Telepítés hatóköre"
+        Width="620" Height="390"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized">
+  <Grid Margin="28" RowDefinitions="Auto,Auto,*,Auto">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock Text="Kinek szeretné telepíteni?" FontSize="26" FontWeight="SemiBold" />
+      <TextBlock Text="A választás meghatározza a program, az adatok és a Windows-bejegyzések helyét."
+                 TextWrapping="Wrap" Opacity="0.72" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Margin="0,24,0,0" Spacing="14">
+      <RadioButton x:Name="CurrentUserRadio" GroupName="InstallScope">
+        <StackPanel>
+          <TextBlock Text="Csak nekem" FontWeight="SemiBold" />
+          <TextBlock Text="Nem igényel rendszergazdai jogosultságot. A program és az adatok csak az Ön Windows-profiljához tartoznak."
+                     TextWrapping="Wrap" Opacity="0.72" />
+        </StackPanel>
+      </RadioButton>
+      <RadioButton x:Name="AllUsersRadio" GroupName="InstallScope">
+        <StackPanel>
+          <TextBlock Text="Minden felhasználónak" FontWeight="SemiBold" />
+          <TextBlock Text="Gépszintű telepítés. Rendszergazdai jóváhagyást kérhet a Windows (UAC)."
+                     TextWrapping="Wrap" Opacity="0.72" />
+        </StackPanel>
+      </RadioButton>
+    </StackPanel>
+
+    <Border Grid.Row="2" Margin="0,20,0,0" Padding="12" CornerRadius="6" Background="#08000000">
+      <TextBlock Text="A telepítés hatóköre később nem változtatható meg egy meglévő telepítésen belül; másik hatókör külön telepítésnek számít."
+                 TextWrapping="Wrap" />
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,22,0,0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+      <Button Grid.Column="1" Content="Mégse" MinWidth="100" Click="CancelButton_OnClick" />
+      <Button Grid.Column="2" x:Name="ContinueButton" Content="Tovább" MinWidth="110" IsDefault="True"
+              IsEnabled="False" Click="ContinueButton_OnClick" />
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:installation version="5.0"
+    xmlns:izpack="http://izpack.org/schema/installation"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/installation http://izpack.org/schema/5.0/izpack-installation-5.0.xsd">
+
+    <info>
+        <appname>@{installer.app.name}</appname>
+        <appversion>@{installer.app.version}</appversion>
+        <authors>
+            <author name="Nemzeti Adó- és Vámhivatal" email=""/>
+        </authors>
+        <url>https://github.com/nav-gov-hu/m2m-xml-editor</url>
+        <uninstaller write="yes" path="$INSTALL_PATH\Uninstaller" name="uninstaller.jar"/>
+        <javaversion>@{installer.java.version}</javaversion>
+        <requiresjdk>no</requiresjdk>
+        <writeinstallationinformation>yes</writeinstallationinformation>
+    </info>
+
+    <locale>
+        <langpack iso3="hun"/>
+    </locale>
+
+    <guiprefs width="1020" height="760" resizable="yes">
+        <laf name="substance">
+            <os family="windows"/>
+            <os family="unix"/>
+            <param name="variant" value="business-blue"/>
+        </laf>
+
+        <modifier key="useButtonIcons" value="no"/>
+        <modifier key="useLabelIcons" value="no"/>
+        <modifier key="layoutAnchor" value="NORTHWEST"/>
+        <modifier key="labelGap" value="10"/>
+        <modifier key="labelYGap" value="8"/>
+        <modifier key="textYGap" value="8"/>
+        <modifier key="controlYGap" value="8"/>
+        <modifier key="paragraphYGap" value="12"/>
+        <modifier key="labelToTextYGap" value="6"/>
+        <modifier key="labelToControlYGap" value="6"/>
+        <modifier key="useHeadingPanel" value="yes"/>
+        <modifier key="useHeadingForSummary" value="yes"/>
+        <modifier key="headingLineCount" value="1"/>
+        <modifier key="headingFontSize" value="1.7"/>
+        <modifier key="headingBackgroundColor" value="0x00ffffff"/>
+        <modifier key="headingForegroundColor" value="0x00222222"/>
+        <modifier key="headingImageBorderSize" value="12"/>
+        <modifier key="headingPanelCounter" value="text"/>
+        <modifier key="headingPanelCounterPos" value="inHeading"/>
+    </guiprefs>
+
+    <variables>
+        <!--
+            Az alkalmazás saját setup.html oldala végzi az adatbázis-, könyvtár-,
+            admin- és integrációs konfigurációt. Az IzPack csak a telepítést végzi.
+        -->
+        <variable name="INSTALL_PATH" value="${ENV[LOCALAPPDATA]}\Programs\M2M XML EDITOR\@{installer.app.version}"/>
+        <variable name="InstallerFrame.logfilePath" value="$INSTALL_PATH\install.log"/>
+    </variables>
+
+
+    <resources>
+        <res id="LicencePanel.licence" src="resources/LICENSE.txt" encoding="UTF-8"/>
+        <res id="UninstallerIcon" src="resources/app.ico"/>
+    </resources>
+
+    <panels>
+        <panel classname="HelloPanel"/>
+        <panel classname="LicencePanel"/>
+        <panel classname="InstallPanel"/>
+        <panel classname="SimpleFinishPanel" allowClose="true"/>
+    </panels>
+
+
+
+    <!--
+        FONTOS ADATVEDELMI INVARIANS:
+        az IzPack pack kizárólag a program telepítési könyvtárába ($INSTALL_PATH) írhat.
+        Tilos a ${ENV[LOCALAPPDATA]}\M2M-XML-EDITOR és a
+        ${ENV[ProgramData]}\M2M-XML-EDITOR adat/config könyvtárakba telepíteni,
+        hogy ezek soha ne kerülhessenek az IzPack uninstaller törlési nyilvántartásába.
+    -->
+    <packs>
+        <pack name="M2M XML EDITOR" required="yes">
+            <description>Az alkalmazás futtatókörnyezete és állományai.</description>
+            <fileset dir="payload" targetdir="$INSTALL_PATH"/>
+            <singlefile src="resources/M2M XML EDITOR eltavolitasa.ps1"
+                        target="$INSTALL_PATH\Uninstaller\M2M XML EDITOR eltavolitasa.ps1"
+                        os="windows"/>
+        </pack>
+    </packs>
+</izpack:installation>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<izpack:shortcuts version="5.0"
+    xmlns:izpack="http://izpack.org/schema/shortcuts"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://izpack.org/schema/shortcuts http://izpack.org/schema/5.0/izpack-shortcuts-5.0.xsd">
+
+    <defaultCurrentUser/>
+    <skipIfNotSupported/>
+    <programGroup defaultName="M2M XML EDITOR" location="applications"/>
+
+    <shortcut name="M2M XML EDITOR"
+              target="$INSTALL_PATH\M2M XML EDITOR.exe"
+              commandLine=""
+              workingDirectory="$INSTALL_PATH"
+              description="M2M XML EDITOR"
+              iconFile="$INSTALL_PATH\app.ico"
+              iconIndex="0"
+              initialState="normal"
+              programGroup="true"
+              desktop="true"
+              applications="true"
+              startMenu="false"
+              startup="false"
+              runAsAdministrator="false">
+        <os family="windows"/>
+        <createForPack name="M2M XML EDITOR"/>
+    </shortcut>
+
+    <shortcut name="M2M XML EDITOR"
+              target="$INSTALL_PATH/M2M XML EDITOR"
+              workingDirectory="$INSTALL_PATH"
+              description="M2M XML EDITOR"
+              programGroup="true"
+              desktop="true"
+              applications="true"
+              startup="false"
+              type="Application"
+              encoding="UTF-8"
+              terminal="false">
+        <os family="unix"/>
+        <createForPack name="M2M XML EDITOR"/>
+    </shortcut>
+</izpack:shortcuts>

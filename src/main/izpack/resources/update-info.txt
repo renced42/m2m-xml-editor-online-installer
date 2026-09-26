@@ -1,0 +1,3 @@
+Meglévő telepítés frissítésekor a programfájlok frissülnek, a meglévő konfiguráció és adatok megmaradnak.
+
+A következő iterációban az existing-install detector és a hiányzó konfigurációs kulcsok biztonságos hozzáfűzése kerül át az Inno implementációból.
