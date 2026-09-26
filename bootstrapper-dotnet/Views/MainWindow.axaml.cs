@@ -48,7 +48,6 @@ public sealed partial class MainWindow : Window
         EmbeddedAssetsService.ExtractInstallerProject(_paths.InstallerProjectDirectory);
         _thirdPartyLegalDirectory = Path.Combine(_paths.CacheRoot, "third-party-licenses");
         EmbeddedAssetsService.ExtractBundledLegalDocuments(_thirdPartyLegalDirectory);
-        ThirdPartyLicensesButton.IsVisible = File.Exists(Path.Combine(_thirdPartyLegalDirectory, "THIRD-PARTY-NOTICES.txt"));
         _log = new LogService(_paths);
         _platform = new WindowsPlatformService(_paths, _log, _config.ApplicationName);
         _database = new DatabaseProfileService(_paths, _log);
@@ -309,17 +308,6 @@ public sealed partial class MainWindow : Window
 
     private async void RefreshButton_OnClick(object? sender, RoutedEventArgs e) => await LoadReleasesAsync();
 
-    private async void ThirdPartyLicensesButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (!File.Exists(Path.Combine(_thirdPartyLegalDirectory, "THIRD-PARTY-NOTICES.txt")))
-        {
-            ShowInlineError("Ebben a buildben nincs beágyazott third-party licencanyag.");
-            return;
-        }
-
-        await ShowThirdPartyLicensesDialogAsync(this);
-    }
-
     private async Task ShowThirdPartyLicensesDialogAsync(Window owner)
     {
         var text = await ReadThirdPartyLegalTextAsync();
@@ -419,23 +407,26 @@ public sealed partial class MainWindow : Window
         }
 
         var text = await File.ReadAllTextAsync(licensePath);
+        var thirdPartyNoticePath = Path.Combine(_thirdPartyLegalDirectory, "THIRD-PARTY-NOTICES.txt");
+        var hasThirdPartyLicenses = File.Exists(thirdPartyNoticePath);
         var accepted = false;
         var dialog = new Window
         {
             Title = "M2M XML EDITOR – Licenc és nyilatkozatok",
-            Width = 760,
-            Height = 620,
-            MinWidth = 620,
-            MinHeight = 480,
+            Width = 800,
+            Height = 700,
+            MinWidth = 660,
+            MinHeight = 540,
             CanResize = true,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
 
         var acceptButton = new Button
         {
-            Content = "Elfogadom",
-            MinWidth = 120,
-            IsDefault = true
+            Content = "Tovább a telepítéshez",
+            MinWidth = 180,
+            IsDefault = true,
+            IsEnabled = false
         };
         var rejectButton = new Button
         {
@@ -443,13 +434,6 @@ public sealed partial class MainWindow : Window
             MinWidth = 120,
             IsCancel = true
         };
-
-        acceptButton.Click += (_, _) =>
-        {
-            accepted = true;
-            dialog.Close();
-        };
-        rejectButton.Click += (_, _) => dialog.Close();
 
         var licenseText = new TextBox
         {
@@ -459,35 +443,79 @@ public sealed partial class MainWindow : Window
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
         };
 
+        var m2mLicenseCheckBox = new CheckBox
+        {
+            Content = "Elfogadom az M2M XML EDITOR licencfeltételeit.",
+            IsChecked = false
+        };
+        var thirdPartyLicenseCheckBox = new CheckBox
+        {
+            Content = "Elfogadom a harmadik féltől származó komponensek licencfeltételeit.",
+            IsChecked = false,
+            IsVisible = hasThirdPartyLicenses
+        };
+
         var thirdPartyButton = new Button
         {
-            Content = "Harmadik féltől származó licencek",
-            MinWidth = 230,
-            IsVisible = File.Exists(Path.Combine(_thirdPartyLegalDirectory, "THIRD-PARTY-NOTICES.txt"))
+            Content = "Harmadik féltől származó licencek megtekintése",
+            MinWidth = 300,
+            IsVisible = hasThirdPartyLicenses,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left
         };
         thirdPartyButton.Click += async (_, _) => await ShowThirdPartyLicensesDialogAsync(dialog);
 
+        void UpdateAcceptButtonState()
+        {
+            var m2mAccepted = m2mLicenseCheckBox.IsChecked == true;
+            var thirdPartyAccepted = !hasThirdPartyLicenses || thirdPartyLicenseCheckBox.IsChecked == true;
+            acceptButton.IsEnabled = m2mAccepted && thirdPartyAccepted;
+        }
+
+        m2mLicenseCheckBox.Click += (_, _) => UpdateAcceptButtonState();
+        thirdPartyLicenseCheckBox.Click += (_, _) => UpdateAcceptButtonState();
+
+        acceptButton.Click += (_, _) =>
+        {
+            if (!acceptButton.IsEnabled)
+                return;
+
+            accepted = true;
+            dialog.Close();
+        };
+        rejectButton.Click += (_, _) => dialog.Close();
+
+        var acceptancePanel = new StackPanel
+        {
+            Spacing = 8
+        };
+        acceptancePanel.Children.Add(m2mLicenseCheckBox);
+        if (hasThirdPartyLicenses)
+        {
+            acceptancePanel.Children.Add(thirdPartyButton);
+            acceptancePanel.Children.Add(thirdPartyLicenseCheckBox);
+        }
+
         var footer = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
             ColumnSpacing = 10
         };
-        Grid.SetColumn(thirdPartyButton, 0);
-        Grid.SetColumn(rejectButton, 2);
-        Grid.SetColumn(acceptButton, 3);
-        footer.Children.Add(thirdPartyButton);
+        Grid.SetColumn(rejectButton, 1);
+        Grid.SetColumn(acceptButton, 2);
         footer.Children.Add(rejectButton);
         footer.Children.Add(acceptButton);
 
         var content = new Grid
         {
             Margin = new Thickness(22),
-            RowDefinitions = new RowDefinitions("*,Auto"),
+            RowDefinitions = new RowDefinitions("*,Auto,Auto"),
             RowSpacing = 14
         };
         Grid.SetRow(licenseText, 0);
-        Grid.SetRow(footer, 1);
+        Grid.SetRow(acceptancePanel, 1);
+        Grid.SetRow(footer, 2);
         content.Children.Add(licenseText);
+        content.Children.Add(acceptancePanel);
         content.Children.Add(footer);
         dialog.Content = content;
 
@@ -495,8 +523,10 @@ public sealed partial class MainWindow : Window
 
         _licenseAccepted = accepted;
         LicenseStatusText.Text = accepted
-            ? "A licencfeltételeket elfogadta. A telepítés folytatható."
-            : "A licencfeltételeket elutasította. A telepítés nem folytatható.";
+            ? hasThirdPartyLicenses
+                ? "Az M2M XML EDITOR és a harmadik féltől származó komponensek licencfeltételeit elfogadta. A telepítés folytatható."
+                : "Az M2M XML EDITOR licencfeltételeit elfogadta. A telepítés folytatható."
+            : "A szükséges licencfeltételeket nem fogadta el. A telepítés nem folytatható.";
         HideError();
         UpdateSelectionState();
     }

@@ -15,4 +15,3 @@ target/
 # Build-time generated embedded bootstrapper assets
 bootstrapper-dotnet/EmbeddedAssets/
 bootstrapper-dotnet/.build/
-.idea/jarRepositories.xml

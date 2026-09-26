@@ -35,8 +35,7 @@
                      Text="A telepítés csak a licenc- és felhasználási feltételek megtekintése után indítható. Az alkalmazás konfigurációja az első indításkor a setup.html felületen történik." />
           <StackPanel Orientation="Horizontal" Spacing="12">
             <Button x:Name="LicenseButton" Content="Licenc megtekintése" HorizontalAlignment="Left" Click="LicenseButton_OnClick" />
-            <Button x:Name="ThirdPartyLicensesButton" Content="Harmadik féltől származó licencek" HorizontalAlignment="Left" Click="ThirdPartyLicensesButton_OnClick" IsVisible="False" />
-            <TextBlock x:Name="LicenseStatusText" Text="A Telepítés folytatásához olvassa el és fogadja el a licencfeltételeket." VerticalAlignment="Center" Opacity="0.72" TextWrapping="Wrap" />
+            <TextBlock x:Name="LicenseStatusText" Text="A telepítés folytatásához nyissa meg a licencablakot és fogadja el a szükséges licencfeltételeket." VerticalAlignment="Center" Opacity="0.72" TextWrapping="Wrap" />
           </StackPanel>
         </StackPanel>
       </Border>

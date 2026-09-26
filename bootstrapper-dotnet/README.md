@@ -134,3 +134,7 @@ A publish kimenet neve a build módtól függ:
 - `--bundle-runtime-components`: `M2M-XML-EDITOR-Embedded-Setup.exe`
 
 Bootstrapper verzió: `0.9.18`.
+
+## R29.41 – licencelfogadás
+
+A third-party licencek kizárólag a felugró licencablakból érhetők el. Bundled/embedded buildben két külön checkbox szükséges az M2M XML EDITOR, illetve a beágyazott third-party komponensek licencfeltételeinek elfogadásához. A `Tovább a telepítéshez` gomb csak mindkettő bejelölése után aktív. Bootstrapper verzió: `0.9.19`.

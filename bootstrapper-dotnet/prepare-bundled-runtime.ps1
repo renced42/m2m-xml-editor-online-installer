@@ -21,7 +21,7 @@ function Get-Sha256([string]$Path) {
 
 function New-BuildWebClient() {
     $client = New-Object System.Net.WebClient
-    $client.Headers['User-Agent'] = 'M2M-XML-EDITOR-Online-Setup-Build/0.9.18'
+    $client.Headers['User-Agent'] = 'M2M-XML-EDITOR-Online-Setup-Build/0.9.19'
     $client.Proxy = [System.Net.WebRequest]::DefaultWebProxy
     if ($client.Proxy) {
         $client.Proxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
