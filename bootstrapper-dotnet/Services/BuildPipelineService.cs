@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using M2M.XmlEditor.Bootstrapper.Models;
 
 namespace M2M.XmlEditor.Bootstrapper.Services;
@@ -8,61 +8,91 @@ public sealed class BuildPipelineService
     private readonly BootstrapperConfig _config; private readonly AppPaths _paths; private readonly DownloadService _download; private readonly ZipService _zip; private readonly RuntimeService _runtime; private readonly ProcessService _process; private readonly WindowsPlatformService _platform; private readonly DatabaseProfileService _database; private readonly LogService _log; private readonly ProxySettings _proxySettings;
     private readonly Func<TlsServerCertificateInfo, Task<bool>> _certificateTrustPrompt;
     private readonly TlsTrustService _tlsTrust;
+    private readonly LocalSourcePackageService _localSourcePackages;
 
-    public BuildPipelineService(BootstrapperConfig config, AppPaths paths, DownloadService download, ZipService zip, RuntimeService runtime, ProcessService process, WindowsPlatformService platform, DatabaseProfileService database, LogService log, ProxySettings proxySettings, Func<TlsServerCertificateInfo, Task<bool>> certificateTrustPrompt)
+    public BuildPipelineService(BootstrapperConfig config, AppPaths paths, DownloadService download, ZipService zip, RuntimeService runtime, ProcessService process, WindowsPlatformService platform, DatabaseProfileService database, LogService log, ProxySettings proxySettings, Func<TlsServerCertificateInfo, Task<bool>> certificateTrustPrompt, LocalSourcePackageService localSourcePackages)
     {
         _config=config; _paths=paths; _download=download; _zip=zip; _runtime=runtime; _process=process; _platform=platform; _database=database; _log=log; _proxySettings=proxySettings.Clone();
         _certificateTrustPrompt = certificateTrustPrompt ?? throw new ArgumentNullException(nameof(certificateTrustPrompt));
         _tlsTrust = new TlsTrustService(paths, process, log);
+        _localSourcePackages = localSourcePackages ?? throw new ArgumentNullException(nameof(localSourcePackages));
     }
 
-    public async Task<InstallationResult> RunAsync(ReleaseInfo release, bool cloneH2, IProgress<ProgressInfo>? progress, CancellationToken ct)
+    public async Task<InstallationResult> RunAsync(ReleaseInfo release, IProgress<ProgressInfo>? progress, CancellationToken ct)
     {
         if (!SemVer.TryParse(release.TagName, out var selected) || selected is null)
             throw new InvalidOperationException("Érvénytelen release-verzió.");
 
         _platform.AssertApplicationNotRunning();
 
+        var installedVersions = _platform.GetInstalledVersions();
+        var installed = installedVersions.FirstOrDefault();
+        if (installed is not null
+            && SemVer.TryParse(installed.Version, out var installedVersion)
+            && installedVersion is not null
+            && selected.CompareTo(installedVersion) == 0)
+        {
+            throw new InvalidOperationException($"A(z) {selected.Normalized} verzió már telepítve van. Ugyanaz a verzió nem telepíthető újra.");
+        }
+
         progress?.Report(new ProgressInfo($"Java {_config.JavaMajorVersion} előkészítése", string.Empty, 5));
         var jdk = await _runtime.EnsureJdkAsync(progress, ct);
         progress?.Report(new ProgressInfo("Maven előkészítése", string.Empty, 12));
         var maven = await _runtime.EnsureMavenAsync(jdk, progress, ct);
-        progress?.Report(new ProgressInfo("Git előkészítése", string.Empty, 18));
-        var git = await _runtime.EnsureGitAsync(progress, ct);
+        var localSourcePackage = _localSourcePackages.FindAdjacentPackage();
+        string source;
+        string? generatedBuildVersion;
+        if (localSourcePackage is not null)
+        {
+            if (!string.Equals(localSourcePackage.Version, selected.Normalized, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"A kiválasztott release ({selected.Normalized}) nem egyezik a helyi forráscsomag verziójával ({localSourcePackage.Version}).");
 
-        progress?.Report(new ProgressInfo("MinGit GitHub kapcsolat ellenőrzése", release.TagName, 22));
-        await TestGitConnectivityAsync(git, progress, ct);
+            progress?.Report(new ProgressInfo("Helyi forráscsomag előkészítése", Path.GetFileName(localSourcePackage.ZipPath), 22));
+            source = await PrepareLocalSourceAsync(localSourcePackage, progress, ct);
 
-        progress?.Report(new ProgressInfo("Git forrás ellenőrzése", release.TagName, 25));
-        var source = await PrepareSourceAsync(release.TagName, git, progress, ct);
+            // A helyi ZIP csak a forráskódot tartalmazza, GitHub kapcsolat nem szükséges.
+            // A projekt buildje azonban ugyanazzal a repository-specifikus wrapperrel fusson,
+            // mint az online útvonalon. A MinGit csak a build-versioned.cmd PATH-jához kell;
+            // ZIP módban nincs ls-remote, clone, fetch vagy checkout.
+            progress?.Report(new ProgressInfo("MinGit előkészítése a verziózott buildhez", string.Empty, 35));
+            var git = await _runtime.EnsureGitAsync(progress, ct);
+            progress?.Report(new ProgressInfo("Helyi Git verziókörnyezet előkészítése", localSourcePackage.Version, 40));
+            await PrepareLocalVersionGitMetadataAsync(source, git, localSourcePackage.Version, ct);
+            progress?.Report(new ProgressInfo("Verziózott M2M XML EDITOR build helyi forrásból", release.TagName, 45));
+            generatedBuildVersion = await BuildApplicationVersionedAsync(source, jdk, maven, git, progress, ct);
+        }
+        else
+        {
+            progress?.Report(new ProgressInfo("Git előkészítése", string.Empty, 18));
+            var git = await _runtime.EnsureGitAsync(progress, ct);
 
-        progress?.Report(new ProgressInfo("Verziózott M2M XML EDITOR build", release.TagName, 45));
-        var generatedBuildVersion = await BuildApplicationVersionedAsync(source, jdk, maven, git, progress, ct);
+            progress?.Report(new ProgressInfo("MinGit GitHub kapcsolat ellenőrzése", release.TagName, 22));
+            await TestGitConnectivityAsync(git, progress, ct);
 
-        // A termék hivatalos verziója mindig a felhasználó által kiválasztott GitHub release/tag.
+            progress?.Report(new ProgressInfo("Git forrás ellenőrzése", release.TagName, 25));
+            source = await PrepareSourceAsync(release.TagName, git, progress, ct);
+
+            progress?.Report(new ProgressInfo("Verziózott M2M XML EDITOR build", release.TagName, 45));
+            generatedBuildVersion = await BuildApplicationVersionedAsync(source, jdk, maven, git, progress, ct);
+        }
+
+        // A termék hivatalos verziója online módban a kiválasztott GitHub release/tag,
+        // helyi ZIP módban pedig kötelezően a ZIP projektgyökerében lévő RELEASE állományból feloldott release.
         // A build-versioned.cmd által előállított VERSION_RELEASE kizárólag diagnosztikai adat.
         // A build-version.env hiánya ezért nem lehet telepítést megszakító hiba.
         var releaseVersion = release.TagName.Trim();
         if (string.IsNullOrWhiteSpace(generatedBuildVersion))
-            _log.Write($"Kiválasztott GitHub release: {releaseVersion}. A build-version.env nem készült el; a GitHub release verziója marad a hivatalos termékverzió.");
+            _log.Write($"Kiválasztott release: {releaseVersion}. A build-version.env nem készült el; a kiválasztott release verziója marad a hivatalos termékverzió.");
         else
-            _log.Write($"Kiválasztott GitHub release: {releaseVersion}; build-versioned.cmd VERSION_RELEASE: {generatedBuildVersion} (csak diagnosztika).");
+            _log.Write($"Kiválasztott release: {releaseVersion}; build-versioned.cmd VERSION_RELEASE: {generatedBuildVersion} (csak diagnosztika).");
 
-        var newest = _platform.GetNewestInstalledVersion();
-        if (newest is not null && SemVer.TryParse(newest.Version, out var installed) && installed is not null && selected.CompareTo(installed) < 0)
-            throw new InvalidOperationException($"A kiválasztott {releaseVersion} release régebbi a telepített {installed.Normalized} verziónál. Downgrade nem engedélyezett.");
-
-        var targetData = _paths.DataDirectory(releaseVersion);
-        if (cloneH2)
-        {
-            if (newest is null || !SemVer.TryParse(newest.Version, out var cloneSourceVersion) || cloneSourceVersion is null || selected.CompareTo(cloneSourceVersion) <= 0)
-                throw new InvalidOperationException("H2 adatmásolás csak újabb GitHub release telepítésekor használható.");
-            _database.CloneH2Data(newest, releaseVersion);
-        }
-        else
-        {
-            Directory.CreateDirectory(targetData);
-        }
+        // Egyetlen tartós adat/config könyvtárat használunk. Frissítéskor a már használt
+        // adatkönyvtárat változtatás nélkül visszük tovább; sem másolás, sem migráció nem történik.
+        var targetData = _paths.DataDirectory();
+        Directory.CreateDirectory(targetData);
+        _log.Write(installed is null
+            ? $"Első telepítés fix adat/config könyvtára: {targetData}"
+            : $"Frissítés fix adat/config könyvtára változatlanul megőrizve: {targetData}");
 
         if (_paths.Scope == InstallationScope.AllUsers)
             await EnsureAllUsersDataPermissionsAsync(targetData, ct);
@@ -80,9 +110,9 @@ public sealed class BuildPipelineService
         var installer = await BuildIzPackInstallerAsync(jdk, maven, releaseVersion, isolatedInstallerProject, ct);
         _platform.AssertApplicationNotRunning();
         progress?.Report(new ProgressInfo("Alkalmazás telepítése", releaseVersion, 90));
-        await RunInstallerAsync(jdk, installer, releaseVersion, runId, ct);
+        await ReplaceProgramBinariesAsync(jdk, installer, releaseVersion, runId, ct);
 
-        var installDirectory = _paths.ProgramDirectory(releaseVersion);
+        var installDirectory = _paths.ProgramDirectory();
         var installedExecutable = Path.Combine(installDirectory, $"{_config.ApplicationName}.exe");
         var uninstaller = Path.Combine(installDirectory, "Uninstaller", "uninstaller.jar");
         var uninstallLauncher = Path.Combine(installDirectory, "Uninstaller", "M2M XML EDITOR eltavolitasa.ps1");
@@ -107,8 +137,8 @@ public sealed class BuildPipelineService
                 "Az IzPack folyamat hibakód nélkül befejeződött, de a telepítés nem teljes. Hiányzó elemek: " + missingText);
         }
 
-        _platform.RegisterUninstallEntry(releaseVersion, installDirectory, uninstallLauncher);
-        _platform.CreateApplicationShortcuts(releaseVersion, installDirectory, installedExecutable);
+        _platform.RegisterUninstallEntry(releaseVersion, installDirectory, targetData, uninstallLauncher);
+        _platform.CreateApplicationShortcuts(installDirectory, installedExecutable);
         _log.Write($"Telepítés utóellenőrzése sikeres: {installDirectory}");
         progress?.Report(new ProgressInfo("A telepítés sikeresen befejeződött", releaseVersion, 100));
         return new InstallationResult(releaseVersion, installedExecutable);
@@ -294,6 +324,97 @@ public sealed class BuildPipelineService
 
         _log.Write($"Git forrás előkészítve. Tag: {tag}; repository: {source}");
         return source;
+    }
+
+    private async Task<string> PrepareLocalSourceAsync(
+        LocalSourcePackage package,
+        IProgress<ProgressInfo>? progress,
+        CancellationToken ct)
+    {
+        // A helyi ZIP forrast rovid TEMP utvonalra csomagoljuk ki. Windows alatt a teljes
+        // repository-utvonal konnyen atlepheti a klasszikus MAX_PATH korlatot, kulonosen a
+        // hosszu Java csomagnevek es fajlnevek mellett. A release-verzio ezert nem resze az
+        // ideiglenes konyvtar nevenek.
+        var localRoot = Path.Combine(Path.GetTempPath(), "m2m-src");
+        var extractRoot = Path.Combine(localRoot, Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(localRoot);
+        await _zip.ExtractCleanAsync(package.ZipPath, extractRoot, $"M2M XML EDITOR forrás {package.Version}", progress, ct);
+
+        var source = ResolveExtractedSourceRoot(extractRoot);
+        var pom = Path.Combine(source, "pom.xml");
+        if (!File.Exists(pom))
+            throw new FileNotFoundException("A helyi forráscsomag kicsomagolt gyökerében nem található pom.xml.", pom);
+
+        _log.Write($"Helyi forrás előkészítve. Release: {package.Version}; ZIP: {package.ZipPath}; forrás: {source}");
+        return source;
+    }
+
+    private static string ResolveExtractedSourceRoot(string extractRoot)
+    {
+        if (File.Exists(Path.Combine(extractRoot, "pom.xml"))) return extractRoot;
+
+        var directories = Directory.GetDirectories(extractRoot);
+        if (directories.Length == 1 && File.Exists(Path.Combine(directories[0], "pom.xml")))
+            return directories[0];
+
+        var candidates = Directory.GetFiles(extractRoot, "pom.xml", SearchOption.AllDirectories)
+            .Select(Path.GetDirectoryName)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (candidates.Length == 1) return candidates[0]!;
+
+        throw new InvalidDataException("A helyi forrás-ZIP repository gyökere nem határozható meg egyértelműen.");
+    }
+
+    private async Task PrepareLocalVersionGitMetadataAsync(
+        string source,
+        string gitHome,
+        string releaseVersion,
+        CancellationToken ct)
+    {
+        var gitExe = Path.Combine(gitHome, "cmd", "git.exe");
+        if (!File.Exists(gitExe))
+            throw new FileNotFoundException("A MinGit git.exe nem található a helyi ZIP verziókörnyezet előkészítéséhez.", gitExe);
+
+        var gitDirectory = Path.Combine(source, ".git");
+        if (Directory.Exists(gitDirectory))
+            Directory.Delete(gitDirectory, recursive: true);
+
+        await _process.RunAsync(gitExe, new[] { "init" }, source, null, null, ct);
+        await _process.RunAsync(gitExe, new[] { "config", "core.longpaths", "true" }, source, null, null, ct);
+        await _process.RunAsync(gitExe, new[] { "config", "user.name", "M2M XML EDITOR Bootstrapper" }, source, null, null, ct);
+        await _process.RunAsync(gitExe, new[] { "config", "user.email", "bootstrapper@localhost" }, source, null, null, ct);
+        await _process.RunAsync(gitExe, new[] { "-c", "core.longpaths=true", "add", "-A" }, source, null, null, ct);
+        await _process.RunAsync(
+            gitExe,
+            new[] { "commit", "--no-gpg-sign", "-m", $"Offline source {releaseVersion}" },
+            source,
+            null,
+            null,
+            ct);
+        await _process.RunAsync(
+            gitExe,
+            new[] { "tag", "--force", releaseVersion },
+            source,
+            null,
+            null,
+            ct);
+
+        var exactTag = string.Empty;
+        await _process.RunAsync(
+            gitExe,
+            new[] { "describe", "--tags", "--exact-match", "HEAD" },
+            source,
+            null,
+            line => exactTag = line.Trim(),
+            ct);
+
+        if (!string.Equals(exactTag, releaseVersion, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"A helyi Git verziókörnyezet release tagje nem egyezik a ZIP projektgyökerében lévő RELEASE állomány értékével. Elvárt: {releaseVersion}; kapott: {exactTag}.");
+
+        _log.Write($"Helyi Git verziókörnyezet elkészült és ellenőrizve. A build-versioned.cmd által látható release tag: {releaseVersion}");
     }
 
     private async Task<string?> FindLegacyCloneAsync(
@@ -496,7 +617,7 @@ public sealed class BuildPipelineService
 
         if (!values.TryGetValue("VERSION_RELEASE", out var version) || string.IsNullOrWhiteSpace(version))
         {
-            _log.Write("A build-version.env nem tartalmaz VERSION_RELEASE értéket. Ez csak diagnosztikai adat; a GitHub release verziója marad érvényben.");
+            _log.Write("A build-version.env nem tartalmaz VERSION_RELEASE értéket. Ez csak diagnosztikai adat; a kiválasztott release verziója marad érvényben.");
             return null;
         }
 
@@ -539,7 +660,7 @@ public sealed class BuildPipelineService
     {
         var installXml = Path.Combine(installerProject, "src", "main", "izpack", "install.xml");
         var installXmlText = File.ReadAllText(installXml);
-        var defaultInstallPath = _paths.ProgramDirectory(version)
+        var defaultInstallPath = _paths.ProgramDirectory()
             .Replace("&", "&amp;")
             .Replace("\"", "&quot;")
             .Replace("<", "&lt;")
@@ -551,7 +672,7 @@ public sealed class BuildPipelineService
         File.WriteAllText(installXml, installXmlText);
 
         var scope = _paths.Scope == InstallationScope.AllUsers ? "AllUsers" : "CurrentUser";
-        _log.Write($"IzPack telepítési hatókör beállítva: {scope}, cél: {_paths.ProgramDirectory(version)}. " +
+        _log.Write($"IzPack telepítési hatókör beállítva: {scope}, cél: {_paths.ProgramDirectory()}. " +
                    "A Windows uninstall-regisztrációt a bootstrapper végzi a sikeres telepítés után.");
     }
 
@@ -747,12 +868,58 @@ public sealed class BuildPipelineService
         return false;
     }
 
+    private async Task ReplaceProgramBinariesAsync(string jdk, string installer, string version, string runId, CancellationToken ct)
+    {
+        var programDirectory = _paths.ProgramDirectory();
+        var programParent = Path.GetDirectoryName(programDirectory)
+            ?? throw new InvalidOperationException("A programkönyvtár szülőkönyvtára nem határozható meg.");
+        var backupDirectory = Path.Combine(programParent, $".M2M-XML-EDITOR-backup-{runId}");
+        var hadExistingProgram = Directory.Exists(programDirectory);
+
+        if (Directory.Exists(backupDirectory)) Directory.Delete(backupDirectory, true);
+
+        try
+        {
+            if (hadExistingProgram)
+            {
+                Directory.Move(programDirectory, backupDirectory);
+                _log.Write($"Meglévő program binárisok ideiglenes biztonsági mentése: {backupDirectory}");
+            }
+
+            await RunInstallerAsync(jdk, installer, version, runId, ct);
+
+            if (Directory.Exists(backupDirectory))
+            {
+                Directory.Delete(backupDirectory, true);
+                _log.Write("A frissítés sikeres; a korábbi program-bináris mentés törölve.");
+            }
+        }
+        catch
+        {
+            _log.Write("A programbinárisok frissítése sikertelen; visszaállítás indul.");
+            try
+            {
+                if (Directory.Exists(programDirectory)) Directory.Delete(programDirectory, true);
+                if (Directory.Exists(backupDirectory))
+                {
+                    Directory.Move(backupDirectory, programDirectory);
+                    _log.Write("A korábbi program binárisok visszaállítása sikeres.");
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                _log.Write("HIBA a programbinárisok visszaállítása közben: " + rollbackError);
+            }
+            throw;
+        }
+    }
+
     private async Task RunInstallerAsync(string jdk, string installer, string version, string runId, CancellationToken ct)
     {
         var runRoot = Path.Combine(_paths.Workspace, "runs", runId);
         Directory.CreateDirectory(runRoot);
         var defaultsFile = Path.Combine(runRoot, "izpack.defaults");
-        var installPath = _paths.ProgramDirectory(version).Replace('\\', '/');
+        var installPath = _paths.ProgramDirectory().Replace('\\', '/');
         await File.WriteAllLinesAsync(defaultsFile, new[]
         {
             $"INSTALL_PATH={installPath}"
@@ -761,14 +928,14 @@ public sealed class BuildPipelineService
         var args = new[]
         {
             "-Dfile.encoding=UTF-8",
-            $"-DINSTALL_PATH={_paths.ProgramDirectory(version)}",
+            $"-DINSTALL_PATH={_paths.ProgramDirectory()}",
             "-jar", installer,
             "-language", "hun",
             "-defaults-file", defaultsFile,
             "-auto"
         };
 
-        _log.Write($"IzPack automatikus telepítés indítása. Célkönyvtár: {_paths.ProgramDirectory(version)}");
+        _log.Write($"IzPack automatikus telepítés indítása. Célkönyvtár: {_paths.ProgramDirectory()}");
         await _process.RunAsync(
             Path.Combine(jdk, "bin", "java.exe"),
             args,

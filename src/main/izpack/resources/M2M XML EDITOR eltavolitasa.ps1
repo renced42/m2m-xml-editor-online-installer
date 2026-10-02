@@ -51,6 +51,70 @@ function Show-UninstallMessage {
     ) | Out-Null
 }
 
+
+function Show-UninstallConfirmation {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = 'M2M XML EDITOR eltávolítása'
+    $form.StartPosition = 'CenterScreen'
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ShowInTaskbar = $true
+    $form.ClientSize = New-Object System.Drawing.Size(560, 210)
+    $form.Tag = $false
+
+    $messageLabel = New-Object System.Windows.Forms.Label
+    $messageLabel.AutoSize = $false
+    $messageLabel.Location = New-Object System.Drawing.Point(20, 18)
+    $messageLabel.Size = New-Object System.Drawing.Size(520, 62)
+    $messageLabel.Text = 'Az M2M XML EDITOR programfájljai eltávolításra kerülnek. A tartós adat- és konfigurációs könyvtárak nem kerülnek törlésre.'
+
+    $confirmationCheckBox = New-Object System.Windows.Forms.CheckBox
+    $confirmationCheckBox.AutoSize = $false
+    $confirmationCheckBox.Location = New-Object System.Drawing.Point(22, 92)
+    $confirmationCheckBox.Size = New-Object System.Drawing.Size(510, 42)
+    $confirmationCheckBox.Text = 'Megerősítem, hogy az M2M XML EDITOR alkalmazást el kívánom távolítani.'
+    $confirmationCheckBox.Checked = $false
+
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Location = New-Object System.Drawing.Point(326, 154)
+    $cancelButton.Size = New-Object System.Drawing.Size(100, 32)
+    $cancelButton.Text = 'Mégse'
+    $cancelButton.Add_Click({
+        $form.Tag = $false
+        $form.Close()
+    })
+
+    $uninstallButton = New-Object System.Windows.Forms.Button
+    $uninstallButton.Location = New-Object System.Drawing.Point(438, 154)
+    $uninstallButton.Size = New-Object System.Drawing.Size(100, 32)
+    $uninstallButton.Text = 'Eltávolítás'
+    $uninstallButton.Enabled = $false
+    $uninstallButton.Add_Click({
+        if ($confirmationCheckBox.Checked) {
+            $form.Tag = $true
+            $form.Close()
+        }
+    })
+
+    $confirmationCheckBox.Add_CheckedChanged({
+        $uninstallButton.Enabled = $confirmationCheckBox.Checked
+    })
+
+    $form.Controls.Add($messageLabel)
+    $form.Controls.Add($confirmationCheckBox)
+    $form.Controls.Add($cancelButton)
+    $form.Controls.Add($uninstallButton)
+    $form.AcceptButton = $uninstallButton
+    $form.CancelButton = $cancelButton
+
+    [void]$form.ShowDialog()
+    return ($form.Tag -eq $true)
+}
+
 function Restart-ElevatedIfRequired {
     if ($InstallScope -ne 'AllUsers' -or (Test-IsAdministrator)) {
         return $false
@@ -135,9 +199,9 @@ if (-not $FromTemp) {
 }
 
 $cacheBase = if ($InstallScope -eq 'AllUsers') { $env:ProgramData } else { $env:LOCALAPPDATA }
-$JavawExe = Join-Path $cacheBase 'M2M-XML-EDITOR-Online-Setup\runtime\jdk-21\bin\javaw.exe'
-if (-not (Test-Path -LiteralPath $JavawExe -PathType Leaf)) {
-    $JavawExe = Join-Path $cacheBase 'M2M-XML-EDITOR-Online-Setup\runtime\jdk-17\bin\javaw.exe'
+$JavaExe = Join-Path $cacheBase 'M2M-XML-EDITOR-Online-Setup\runtime\jdk-21\bin\java.exe'
+if (-not (Test-Path -LiteralPath $JavaExe -PathType Leaf)) {
+    $JavaExe = Join-Path $cacheBase 'M2M-XML-EDITOR-Online-Setup\runtime\jdk-17\bin\java.exe'
 }
 $UninstallerJar = Join-Path $InstallPath 'Uninstaller\uninstaller.jar'
 
@@ -157,7 +221,7 @@ try {
         exit 23
     }
 
-    if (-not (Test-Path -LiteralPath $JavawExe -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $JavaExe -PathType Leaf)) {
         Show-UninstallMessage `
             -Message 'Az eltávolításhoz szükséges Java futtatókörnyezet (JDK 21 vagy kompatibilitási JDK 17) nem található.' `
             -Icon 'Error'
@@ -171,9 +235,14 @@ try {
         exit 3
     }
 
+    if (-not (Show-UninstallConfirmation)) {
+        exit 0
+    }
+
     $quotedUninstallerJar = '"' + $UninstallerJar.Replace('"', '\"') + '"'
-    $process = Start-Process -FilePath $JavawExe `
-        -ArgumentList @('-jar', $quotedUninstallerJar) `
+    $process = Start-Process -FilePath $JavaExe `
+        -ArgumentList @('-jar', $quotedUninstallerJar, '-c') `
+        -WindowStyle Hidden `
         -PassThru `
         -Wait
 
@@ -182,43 +251,32 @@ try {
     }
 
     $registryHive = if ($InstallScope -eq 'AllUsers') { 'HKLM:\SOFTWARE' } else { 'HKCU:\SOFTWARE' }
-    $registryPath = "$registryHive\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR $AppVersion"
+    $registryPath = "$registryHive\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR"
     if (Test-Path -LiteralPath $registryPath) {
         Remove-Item -LiteralPath $registryPath -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     $desktopBase = if ($InstallScope -eq 'AllUsers') { [Environment]::GetFolderPath('CommonDesktopDirectory') } else { [Environment]::GetFolderPath('DesktopDirectory') }
     if ($desktopBase) {
-        $desktopShortcut = Join-Path $desktopBase 'M2M XML EDITOR.lnk'
-        if (Test-Path -LiteralPath $desktopShortcut) {
-            try {
-                $shell = New-Object -ComObject WScript.Shell
-                $shortcut = $shell.CreateShortcut($desktopShortcut)
-                $target = [System.IO.Path]::GetFullPath($shortcut.TargetPath)
-                $expected = [System.IO.Path]::GetFullPath((Join-Path $InstallPath 'M2M XML EDITOR.exe'))
-                if ($target -ieq $expected) {
-                    Remove-Item -LiteralPath $desktopShortcut -Force -ErrorAction SilentlyContinue
-                }
+        try {
+            $plainShortcut = Join-Path $desktopBase 'M2M XML EDITOR.lnk'
+            if (Test-Path -LiteralPath $plainShortcut) {
+                Remove-Item -LiteralPath $plainShortcut -Force -ErrorAction SilentlyContinue
             }
-            catch {
-                # A parancsikon takarításának hibája nem akadályozhatja az eltávolítást.
+            foreach ($oldShortcut in @(Get-ChildItem -LiteralPath $desktopBase -Filter 'M2M XML EDITOR *.lnk' -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $oldShortcut.FullName -Force -ErrorAction SilentlyContinue
             }
+        }
+        catch {
+            # A parancsikonok takarításának hibája nem akadályozhatja az eltávolítást.
         }
     }
 
     $startMenuBase = if ($InstallScope -eq 'AllUsers') { $env:ProgramData } else { $env:APPDATA }
     if ($startMenuBase) {
-        $startMenuVersionPath = Join-Path $startMenuBase "Microsoft\Windows\Start Menu\Programs\M2M XML EDITOR\$AppVersion"
-        if (Test-Path -LiteralPath $startMenuVersionPath) {
-            Remove-Item -LiteralPath $startMenuVersionPath -Recurse -Force -ErrorAction SilentlyContinue
-        }
-
         $startMenuRoot = Join-Path $startMenuBase 'Microsoft\Windows\Start Menu\Programs\M2M XML EDITOR'
         if (Test-Path -LiteralPath $startMenuRoot) {
-            $remaining = @(Get-ChildItem -LiteralPath $startMenuRoot -Force -ErrorAction SilentlyContinue)
-            if ($remaining.Count -eq 0) {
-                Remove-Item -LiteralPath $startMenuRoot -Force -ErrorAction SilentlyContinue
-            }
+            Remove-Item -LiteralPath $startMenuRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 

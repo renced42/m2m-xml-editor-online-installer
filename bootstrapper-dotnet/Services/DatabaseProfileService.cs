@@ -35,21 +35,4 @@ public sealed class DatabaseProfileService
         return "Ismeretlen";
     }
 
-    public void CloneH2Data(InstalledVersionInfo source, string targetVersion)
-    {
-        var kind = DetectDatabaseKind(source.DataDirectory);
-        if (!string.Equals(kind, "H2", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Az előző verzió adatbázisa nem H2 ({kind}), ezért a konfiguráció/adatok automatikus másolása tiltott.");
-        var target = _paths.DataDirectory(targetVersion);
-        if (Directory.Exists(target)) Directory.Delete(target, true);
-        CopyDirectory(source.DataDirectory, target);
-        _log.Write($"H2 konfiguráció és adatok másolva: {source.DataDirectory} -> {target}");
-    }
-
-    private static void CopyDirectory(string source, string target)
-    {
-        Directory.CreateDirectory(target);
-        foreach (var file in Directory.GetFiles(source)) File.Copy(file, Path.Combine(target, Path.GetFileName(file)), true);
-        foreach (var directory in Directory.GetDirectories(source)) CopyDirectory(directory, Path.Combine(target, Path.GetFileName(directory)));
-    }
 }

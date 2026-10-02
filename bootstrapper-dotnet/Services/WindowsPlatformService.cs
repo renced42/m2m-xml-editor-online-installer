@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.Versioning;
 using System.Text;
@@ -83,10 +83,10 @@ public sealed class WindowsPlatformService
         }
     }
 
-    public void RegisterUninstallEntry(string version, string installDirectory, string uninstallLauncher)
+    public void RegisterUninstallEntry(string version, string installDirectory, string dataDirectory, string uninstallLauncher)
     {
         var hive = _paths.Scope == InstallationScope.AllUsers ? Registry.LocalMachine : Registry.CurrentUser;
-        var keyPath = $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR {version}";
+        var keyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\M2M XML EDITOR";
         using var key = hive.CreateSubKey(keyPath, writable: true)
             ?? throw new InvalidOperationException($"Nem hozható létre a Windows eltávolítási bejegyzés: {keyPath}");
 
@@ -103,6 +103,8 @@ public sealed class WindowsPlatformService
         key.SetValue("DisplayVersion", version, RegistryValueKind.String);
         key.SetValue("Publisher", "Nemzeti Adó- és Vámhivatal", RegistryValueKind.String);
         key.SetValue("InstallLocation", installDirectory, RegistryValueKind.String);
+        key.SetValue("DataLocation", dataDirectory, RegistryValueKind.String);
+        key.SetValue("BootstrapperLayout", "Single", RegistryValueKind.String);
         key.SetValue("DisplayIcon", Path.Combine(installDirectory, "app.ico"), RegistryValueKind.String);
         key.SetValue("UninstallString", uninstallCommand, RegistryValueKind.String);
         key.SetValue("QuietUninstallString", uninstallCommand, RegistryValueKind.String);
@@ -110,10 +112,33 @@ public sealed class WindowsPlatformService
         key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
 
         _log.Write($"Windows eltávolítási bejegyzés létrehozva: {(_paths.Scope == InstallationScope.AllUsers ? "HKLM" : "HKCU")}\\{keyPath}");
+        RemoveVersionedUninstallEntries(hive);
+    }
+
+    private void RemoveVersionedUninstallEntries(RegistryKey hive)
+    {
+        const string uninstallRootPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
+        using var root = hive.OpenSubKey(uninstallRootPath, writable: true);
+        if (root is null) return;
+
+        foreach (var subName in root.GetSubKeyNames()
+                     .Where(name => name.StartsWith("M2M XML EDITOR ", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            try
+            {
+                root.DeleteSubKeyTree(subName, throwOnMissingSubKey: false);
+                _log.Write($"Korábbi verzióspecifikus uninstall-bejegyzés eltávolítva: {subName}");
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                _log.Write($"A korábbi uninstall-bejegyzés nem távolítható el ({subName}): {ex.Message}");
+            }
+        }
     }
 
 
-    public void CreateApplicationShortcuts(string version, string installDirectory, string executablePath)
+    public void CreateApplicationShortcuts(string installDirectory, string executablePath)
     {
         if (!File.Exists(executablePath))
             throw new FileNotFoundException("A parancsikon célalkalmazása nem található.", executablePath);
@@ -130,15 +155,26 @@ public sealed class WindowsPlatformService
         if (string.IsNullOrWhiteSpace(desktop) || string.IsNullOrWhiteSpace(programs))
             throw new InvalidOperationException("A Windows Asztal vagy Start menü könyvtára nem oldható fel.");
 
+        foreach (var oldShortcut in Directory.EnumerateFiles(desktop, $"{_applicationName} *.lnk", SearchOption.TopDirectoryOnly))
+        {
+            try { File.Delete(oldShortcut); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+
         var desktopShortcut = Path.Combine(desktop, $"{_applicationName}.lnk");
-        var startMenuDirectory = Path.Combine(programs, _applicationName, version);
-        var startMenuShortcut = Path.Combine(startMenuDirectory, $"{_applicationName}.lnk");
-
         CreateWindowsShortcutOutOfProcess(desktopShortcut, executablePath, installDirectory);
-        CreateWindowsShortcutOutOfProcess(startMenuShortcut, executablePath, installDirectory);
+        _log.Write($"Asztali parancsikon létrehozva/frissítve: {desktopShortcut}");
 
-        _log.Write($"Asztali parancsikon létrehozva: {desktopShortcut}");
-        _log.Write($"Start menü parancsikon létrehozva: {startMenuShortcut}");
+        var startMenuDirectory = Path.Combine(programs, _applicationName);
+        if (Directory.Exists(startMenuDirectory))
+        {
+            foreach (var directory in Directory.GetDirectories(startMenuDirectory))
+            {
+                try { Directory.Delete(directory, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+        }
+        var startMenuShortcut = Path.Combine(startMenuDirectory, $"{_applicationName}.lnk");
+        CreateWindowsShortcutOutOfProcess(startMenuShortcut, executablePath, installDirectory);
+        _log.Write($"Start menü parancsikon létrehozva/frissítve: {startMenuShortcut}");
     }
 
     private static void CreateWindowsShortcutOutOfProcess(string shortcutPath, string targetPath, string workingDirectory)
@@ -227,6 +263,30 @@ public sealed class WindowsPlatformService
         using var root = hive.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
         if (root is null) return;
 
+        using var current = root.OpenSubKey("M2M XML EDITOR");
+        var currentVersion = current?.GetValue("DisplayVersion") as string;
+        var currentLocation = current?.GetValue("InstallLocation") as string;
+        var currentDataLocation = current?.GetValue("DataLocation") as string;
+        var layout = current?.GetValue("BootstrapperLayout") as string;
+        SemVer? currentSem = null;
+        var hasSingleLayout = string.Equals(layout, "Single", StringComparison.OrdinalIgnoreCase)
+                              && SemVer.TryParse(currentVersion, out currentSem)
+                              && currentSem is not null
+                              && !string.IsNullOrWhiteSpace(currentLocation);
+
+        if (hasSingleLayout)
+        {
+            result.Add(new InstalledVersionInfo(
+                currentSem!.Normalized,
+                currentLocation!,
+                string.IsNullOrWhiteSpace(currentDataLocation) ? GetDataRoot(scope) : currentDataLocation!,
+                scope));
+            return;
+        }
+
+        // R29.42 és korábbi bootstrapper telepítések felismerése.
+        // Az új telepítési modellben az adat/config hely mindig a fix M2M-XML-EDITOR gyökér;
+        // release-tag alkönyvtárat nem viszünk tovább és nem hozunk létre.
         foreach (var subName in root.GetSubKeyNames())
         {
             if (!subName.StartsWith("M2M XML EDITOR ", StringComparison.OrdinalIgnoreCase)) continue;
@@ -239,31 +299,24 @@ public sealed class WindowsPlatformService
             result.Add(new InstalledVersionInfo(
                 sem.Normalized,
                 installLocation,
-                GetDataDirectory(scope, sem.Normalized),
+                GetDataRoot(scope),
                 scope));
         }
 
-        using var legacy = root.OpenSubKey("M2M XML EDITOR");
-        var legacyVersion = legacy?.GetValue("DisplayVersion") as string;
-        var legacyLocation = legacy?.GetValue("InstallLocation") as string;
-        if (SemVer.TryParse(legacyVersion, out var legacySem) && legacySem is not null && !string.IsNullOrWhiteSpace(legacyLocation))
+        // Régi, nem bootstrapper-layoutú telepítés kompatibilitási felismerése.
+        if (SemVer.TryParse(currentVersion, out var legacySem) && legacySem is not null && !string.IsNullOrWhiteSpace(currentLocation))
         {
             result.Add(new InstalledVersionInfo(
                 legacySem.Normalized,
-                legacyLocation,
-                scope == InstallationScope.AllUsers
-                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "M2M-XML-EDITOR")
-                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "M2M-XML-EDITOR"),
+                currentLocation!,
+                GetDataRoot(scope),
                 scope,
                 true));
         }
     }
 
-    private static string GetDataDirectory(InstallationScope scope, string version)
-    {
-        var root = scope == InstallationScope.AllUsers
+    private static string GetDataRoot(InstallationScope scope) =>
+        scope == InstallationScope.AllUsers
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "M2M-XML-EDITOR")
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "M2M-XML-EDITOR");
-        return Path.Combine(root, version);
-    }
 }

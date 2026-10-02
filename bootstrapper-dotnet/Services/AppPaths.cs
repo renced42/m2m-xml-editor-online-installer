@@ -55,6 +55,6 @@ public sealed class AppPaths
         }
     }
 
-    public string ProgramDirectory(string version) => Path.Combine(ProgramRoot, version);
-    public string DataDirectory(string version) => Path.Combine(DataRoot, version);
+    public string ProgramDirectory() => ProgramRoot;
+    public string DataDirectory() => DataRoot;
 }

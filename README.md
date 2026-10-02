@@ -78,8 +78,8 @@ A hálózati kompatibilitás érdekében a bootstrapper a .NET `HttpClient` kér
 ### Csak nekem
 
 ```text
-Program: %LOCALAPPDATA%\Programs\M2M XML EDITOR\<release>
-Adatok:  %LOCALAPPDATA%\M2M-XML-EDITOR\<release>
+Program: %LOCALAPPDATA%\Programs\M2M XML EDITOR
+Adatok:  %LOCALAPPDATA%\M2M-XML-EDITOR
 Cache:   %LOCALAPPDATA%\M2M-XML-EDITOR-Online-Setup
 Registry: HKCU
 ```
@@ -87,8 +87,8 @@ Registry: HKCU
 ### Minden felhasználónak
 
 ```text
-Program: %ProgramFiles%\M2M XML EDITOR\<release>
-Adatok:  %ProgramData%\M2M-XML-EDITOR\<release>
+Program: %ProgramFiles%\M2M XML EDITOR
+Adatok:  %ProgramData%\M2M-XML-EDITOR
 Cache:   %ProgramData%\M2M-XML-EDITOR-Online-Setup
 Registry: HKLM
 ```
@@ -99,8 +99,7 @@ A tartós adat- és konfigurációs könyvtárakat az eltávolító nem törli.
 
 ```text
 bootstrapper-dotnet/   C#/.NET 8/Avalonia Windows bootstrapper
-installer-project/     IzPack telepítőprojekt és erőforrások
-bootstrapper/          korábbi PowerShell referencia/fallback implementáció
+src/main/izpack/      IzPack telepítőprojekt és erőforrások
 docs/                  részletes fejlesztési dokumentáció
 ```
 
@@ -273,3 +272,36 @@ A publish kimenet neve a build módtól függ:
 - `--bundle-runtime-components`: `M2M-XML-EDITOR-Embedded-Setup.exe`
 
 Bootstrapper verzió: `0.9.18`.
+
+## R29.43 - normál telepítés, konfigurációmegőrző frissítés
+
+Az alkalmazás egyetlen, nem verziózott programkönyvtárba települ. Első telepítéskor a release-listából bármely release kiválasztható. Meglévő telepítésnél egy másik release ugyanazon a helyen csak a program binárisait cseréli; a már használt adat- és konfigurációs könyvtár változatlan marad, automatikus migráció vagy H2-adatmásolás nincs. A programbinárisok cseréje ideiglenes biztonsági mentéssel történik, és sikertelen telepítés esetén a korábbi program visszaáll. Ugyanaz a release nem telepíthető újra. Bootstrapper verzió: `0.9.21`.
+
+
+## R29.44 - WindowsPlatformService fordítási javítás
+
+Javítva a `WindowsPlatformService.ReadInstalledVersions` `currentSem` lokális változójának definite-assignment hibája (`CS0165`). A telepítési és frissítési működés nem változott. Bootstrapper verzió: `0.9.22`.
+
+
+## R29.45 - automatikus helyi forrás-ZIP és fix adatkönyvtár
+
+A bootstrapper automatikusan felismeri a saját EXE-je mellett található `m2m-xml-editor-<release-tag>.zip` forráscsomagot. Ilyenkor kizárólag a ZIP-ben lévő release telepíthető, GitHub release-lista és Git forráslekérés nem történik, kapcsoló megadása nem szükséges. Az R29.45-ben a ZIP közvetlen Maven builddel került feldolgozásra. Az alkalmazás adat/config könyvtára minden esetben a fix `M2M-XML-EDITOR` gyökér, release-tag alkönyvtár nélkül. Bootstrapper verzió: `0.9.23`.
+
+
+## R29.46 - helyi ZIP build-versioned.cmd
+
+A helyi forrás-ZIP buildje most a repository `build-versioned.cmd` wrapperével indul, ugyanazzal a buildfolyamattal, mint az online Git-forrás esetén. ZIP módban továbbra sincs GitHub release-lekérés, `ls-remote`, clone, fetch vagy checkout. A ZIP validáció a `pom.xml` mellett a `build-versioned.cmd` meglétét is ellenőrzi. Bootstrapper verzió: `0.9.25`.
+
+
+## R29.47 - kötelező ZIP release verzió
+
+ZIP-es offline módban a fájlnév kötelező formátuma `m2m-xml-editor-x.y.z-yyyymmdd-hhmmss[-RCx].zip`. A release verzió kizárólag a ZIP fájlnevéből származik; hibás vagy hiányzó verzió esetén a telepítő leáll. A kicsomagolt forrásban a bootstrapper lokális Git metadata-környezetet hoz létre, és pontosan ezt a release taget helyezi a HEAD-re, mielőtt elindítja a `build-versioned.cmd` scriptet. Bootstrapper verzió: `0.9.25`.
+
+## R29.48 - RELEASE állomány alapú offline verzió
+
+ZIP-es offline módban a release verzió elsődleges és kötelező forrása a ZIP gyökerében található `RELEASE` állomány. A fájlnév már nem tartalmaz kötelező verziót. A `RELEASE` állománynak pontosan egy nem üres `x.y.z-yyyymmdd-hhmmss[-RCx]` formátumú release azonosítót kell tartalmaznia; hiányzó vagy hibás érték esetén a telepítő leáll. A bootstrapper a RELEASE értékéből készíti el a lokális Git taget, ezért a `build-versioned.cmd` is pontosan ezt a verziót látja. Bootstrapper verzió: `0.9.26`.
+
+
+## R29.49 - kötelező eltávolítási megerősítés
+
+Az eltávolítás előtt saját Windows megerősítő ablak jelenik meg. Az `Eltávolítás` gomb csak a megerősítő checkbox bepipálása után aktív; enélkül az IzPack eltávolító nem indul el. Jóváhagyás után az IzPack parancssoros (`-c`) módban, force törlés nélkül fut. Bootstrapper verzió: `0.9.27`.

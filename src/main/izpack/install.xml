@@ -54,7 +54,7 @@
             Az alkalmazás saját setup.html oldala végzi az adatbázis-, könyvtár-,
             admin- és integrációs konfigurációt. Az IzPack csak a telepítést végzi.
         -->
-        <variable name="INSTALL_PATH" value="${ENV[LOCALAPPDATA]}\Programs\M2M XML EDITOR\@{installer.app.version}"/>
+        <variable name="INSTALL_PATH" value="${ENV[LOCALAPPDATA]}\Programs\M2M XML EDITOR"/>
         <variable name="InstallerFrame.logfilePath" value="$INSTALL_PATH\install.log"/>
     </variables>
 

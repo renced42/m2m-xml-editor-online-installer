@@ -26,12 +26,20 @@ public sealed class GitHubReleaseService
         try
         {
             var baseUrl = $"https://api.github.com/repos/{_config.GithubOwner}/{_config.GithubRepository}/releases";
-            _log.Write("GitHub latest stable és prerelease lista lekérése...");
-            var latestJson = await _http.GetStringAsync(baseUrl + "/latest", cancellationToken);
-            var releasesJson = await _http.GetStringAsync(baseUrl + $"?per_page={_config.GithubReleasePageSize}", cancellationToken);
-            var latest = ParseOne(latestJson);
-            var prereleases = ParseMany(releasesJson).Where(r => r.Prerelease && !r.Draft);
-            var catalog = new[] { latest }.Concat(prereleases)
+            var pageSize = Math.Clamp(_config.GithubReleasePageSize, 1, 100);
+            _log.Write("GitHub teljes release-lista lekérése (stable és prerelease kiadások)...");
+            var allReleases = new List<ReleaseInfo>();
+            for (var page = 1; ; page++)
+            {
+                var releasesJson = await _http.GetStringAsync(baseUrl + $"?per_page={pageSize}&page={page}", cancellationToken);
+                var batch = ParseMany(releasesJson).ToArray();
+                allReleases.AddRange(batch);
+                _log.Write($"GitHub release-lista: {page}. oldal, {batch.Length} elem.");
+                if (batch.Length < pageSize) break;
+            }
+
+            var catalog = allReleases
+                .Where(r => !r.Draft)
                 .Where(r => SemVer.TryParse(r.TagName, out _))
                 .GroupBy(r => r.TagName, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
@@ -46,12 +54,6 @@ public sealed class GitHubReleaseService
             var cached = JsonSerializer.Deserialize<List<ReleaseInfo>>(await File.ReadAllTextAsync(_paths.ReleaseCacheFile, cancellationToken), _jsonOptions) ?? new();
             return Sort(cached);
         }
-    }
-
-    private static ReleaseInfo ParseOne(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        return ParseElement(doc.RootElement);
     }
 
     private static IEnumerable<ReleaseInfo> ParseMany(string json)

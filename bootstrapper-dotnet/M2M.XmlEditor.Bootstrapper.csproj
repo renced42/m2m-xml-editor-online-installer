@@ -9,7 +9,7 @@
     <BootstrapperAssemblyName Condition="'$(BundleRuntimeComponents)' != 'true'">M2M-XML-EDITOR-Online-Setup</BootstrapperAssemblyName>
     <AssemblyName>$(BootstrapperAssemblyName)</AssemblyName>
     <RootNamespace>M2M.XmlEditor.Bootstrapper</RootNamespace>
-    <Version>0.9.19</Version>
+    <Version>0.9.30</Version>
     <Authors>Nemzeti Adó- és Vámhivatal</Authors>
     <Company>Nemzeti Adó- és Vámhivatal</Company>
     <Product>M2M XML EDITOR Online Setup</Product>

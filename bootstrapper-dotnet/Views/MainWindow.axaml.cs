@@ -20,10 +20,12 @@ public sealed partial class MainWindow : Window
     private readonly WindowsPlatformService _platform;
     private readonly DatabaseProfileService _database;
     private readonly GitHubReleaseService _github;
+    private readonly LocalSourcePackageService _localSourcePackages;
     private readonly BuildPipelineService _pipeline;
     private readonly LegacyUninstallCompatibilityService _legacyCompatibility;
     private List<LegacyUninstallInfo> _legacyUninstallers = new();
     private InstalledVersionInfo? _newest;
+    private HashSet<string> _installedVersions = new(StringComparer.OrdinalIgnoreCase);
     private List<ReleaseInfo> _releases = new();
     private CancellationTokenSource? _cts;
     private bool _shutdownRequested;
@@ -56,7 +58,8 @@ public sealed partial class MainWindow : Window
         var process = new ProcessService(_log);
         var runtime = new RuntimeService(_config, _paths, downloader, zip, _log);
         _github = new GitHubReleaseService(_config, _paths, _log, proxySettings);
-        _pipeline = new BuildPipelineService(_config, _paths, downloader, zip, runtime, process, _platform, _database, _log, proxySettings, ConfirmServerCertificateAsync);
+        _localSourcePackages = new LocalSourcePackageService(_paths, _config, _log);
+        _pipeline = new BuildPipelineService(_config, _paths, downloader, zip, runtime, process, _platform, _database, _log, proxySettings, ConfirmServerCertificateAsync, _localSourcePackages);
         _legacyCompatibility = new LegacyUninstallCompatibilityService(_platform, runtime, _log);
         InstallScopeText.Text = scope == InstallationScope.AllUsers
             ? "Minden felhasználónak (gépszintű telepítés)"
@@ -178,8 +181,12 @@ public sealed partial class MainWindow : Window
         try
         {
             _platform.AssertApplicationNotRunning();
-            await RefreshLegacyCompatibilityAsync();
-            _newest = _platform.GetNewestInstalledVersion();
+            LegacyCompatibilityBorder.IsVisible = false;
+            var installedVersions = _platform.GetInstalledVersions();
+            _newest = installedVersions.FirstOrDefault();
+            _installedVersions = installedVersions
+                .Select(item => item.Version)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             if (_newest is null)
             {
                 InstalledVersionText.Text = "Nincs telepített release";
@@ -192,14 +199,35 @@ public sealed partial class MainWindow : Window
                 DatabaseText.Text = _database.DetectDatabaseKind(_newest.DataDirectory);
             }
 
-            var catalog = await _github.GetCatalogAsync(CancellationToken.None);
-            _releases = FilterInstallable(catalog).ToList();
-            ReleaseCombo.ItemsSource = _releases.Select(r => r.DisplayName).ToArray();
+            var localSourcePackage = _localSourcePackages.FindAdjacentPackage();
+            if (localSourcePackage is not null)
+            {
+                _releases = new List<ReleaseInfo>
+                {
+                    new(localSourcePackage.Version, localSourcePackage.Version, localSourcePackage.Version.Contains("-", StringComparison.Ordinal), false, null)
+                };
+                StageText.Text = "Helyi forráscsomag felismerve.";
+                DetailText.Text = $"A bootstrapper melletti {Path.GetFileName(localSourcePackage.ZipPath)} csomag használata. GitHub release- és forráslekérés nem történik.";
+            }
+            else
+            {
+                var catalog = await _github.GetCatalogAsync(CancellationToken.None);
+                _releases = catalog.ToList();
+            }
+            ReleaseCombo.ItemsSource = _releases
+                .Select(r => IsReleaseInstalled(r) ? $"{r.DisplayName} — telepítve" : r.DisplayName)
+                .ToArray();
             ReleaseCombo.SelectedIndex = GetDefaultReleaseIndex();
-            StageText.Text = _releases.Count > 0
-                ? "A telepítés indítására kész."
-                : "Nincs telepíthető release.";
-            DetailText.Text = _newest is null ? "Első telepítés" : $"Downgrade tiltva: minimum {_newest.Version}";
+            var availableCount = _releases.Count(r => !IsReleaseInstalled(r));
+            var localPackageActive = localSourcePackage is not null;
+            StageText.Text = availableCount > 0
+                ? (localPackageActive ? "A helyi forráscsomag telepítésére kész." : "A telepítés indítására kész.")
+                : "A kiválasztott release már telepítve van.";
+            DetailText.Text = localPackageActive
+                ? $"Helyi forrás: {Path.GetFileName(localSourcePackage!.ZipPath)}. A telepítő kizárólag ezt a release-t használja."
+                : (_newest is null
+                    ? "Első telepítés: a listából bármely release telepíthető."
+                    : "Frissítés: a kiválasztott release a meglévő program binárisait cseréli; a konfiguráció és az adatok változatlanok maradnak.");
         }
         catch (Exception ex)
         {
@@ -216,42 +244,39 @@ public sealed partial class MainWindow : Window
     private int GetDefaultReleaseIndex()
     {
         if (_releases.Count == 0) return -1;
-        var stable = _releases.FindIndex(r => !r.Prerelease);
-        return stable >= 0 ? stable : 0;
+        var stable = _releases.FindIndex(r => !r.Prerelease && !IsReleaseInstalled(r));
+        if (stable >= 0) return stable;
+        var available = _releases.FindIndex(r => !IsReleaseInstalled(r));
+        return available >= 0 ? available : 0;
     }
 
-    private IEnumerable<ReleaseInfo> FilterInstallable(IEnumerable<ReleaseInfo> catalog)
+    private bool IsReleaseInstalled(ReleaseInfo release)
     {
-        SemVer? minimum = null;
-        if (_newest is not null) SemVer.TryParse(_newest.Version, out minimum);
-        return catalog.Where(r => SemVer.TryParse(r.TagName, out var v) && v is not null && (minimum is null || v.CompareTo(minimum) >= 0));
+        if (!SemVer.TryParse(release.TagName, out var version) || version is null) return false;
+        return _installedVersions.Contains(version.Normalized);
     }
 
     private void ReleaseCombo_OnSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateSelectionState();
 
     private void UpdateSelectionState()
     {
-        InstallButton.IsEnabled = _licenseAccepted && ReleaseCombo.SelectedIndex >= 0 && !ProgressBar.IsIndeterminate;
+        var hasSelection = ReleaseCombo.SelectedIndex >= 0;
+        var selectedInstalled = hasSelection && IsReleaseInstalled(_releases[ReleaseCombo.SelectedIndex]);
+        InstallButton.IsEnabled = _licenseAccepted && hasSelection && !selectedInstalled && !ProgressBar.IsIndeterminate;
+        if (selectedInstalled)
+        {
+            DetailText.Text = "A kiválasztott verzió már telepítve van, ezért ugyanaz a release nem telepíthető újra.";
+            return;
+        }
         if (_newest is null || ReleaseCombo.SelectedIndex < 0)
         {
-            CloneH2CheckBox.IsEnabled = false;
-            CloneH2CheckBox.IsChecked = false;
+            DetailText.Text = "Első telepítés: a listából bármely release telepíthető.";
             return;
         }
 
         var selected = _releases[ReleaseCombo.SelectedIndex];
-        SemVer.TryParse(selected.TagName, out var target);
-        SemVer.TryParse(_newest.Version, out var current);
-        var db = _database.DetectDatabaseKind(_newest.DataDirectory);
-        DatabaseText.Text = db;
-        var canClone = db == "H2" && target is not null && current is not null && target.CompareTo(current) > 0;
-        CloneH2CheckBox.IsEnabled = canClone;
-        if (!canClone) CloneH2CheckBox.IsChecked = false;
-        CloneH2CheckBox.Content = canClone
-            ? $"Az {_newest.Version} H2 konfigurációjának és adatainak másolása a {target!.Normalized} verzióhoz"
-            : db == "H2"
-                ? "H2 adatmásolás csak újabb release telepítésekor választható"
-                : "Konfiguráció/adat másolása tiltott (csak H2 adatbázis esetén engedélyezett)";
+        DetailText.Text = $"A(z) {selected.TagName} release telepítése a meglévő program binárisait cseréli. A konfiguráció és az adatok nem kerülnek felülírásra vagy migrálásra.";
+        DatabaseText.Text = _database.DetectDatabaseKind(_newest.DataDirectory);
     }
 
     private async Task RefreshLegacyCompatibilityAsync()
@@ -541,6 +566,8 @@ public sealed partial class MainWindow : Window
         try
         {
             var release = _releases[ReleaseCombo.SelectedIndex];
+            if (IsReleaseInstalled(release))
+                throw new InvalidOperationException($"A(z) {release.TagName} verzió már telepítve van. Ugyanaz a verzió nem telepíthető újra.");
             var progress = new Progress<ProgressInfo>(p =>
             {
                 StageText.Text = p.Stage;
@@ -548,7 +575,7 @@ public sealed partial class MainWindow : Window
                 ProgressBar.IsIndeterminate = false;
                 ProgressBar.Value = p.Percent;
             });
-            _installationResult = await _pipeline.RunAsync(release, CloneH2CheckBox.IsChecked == true, progress, _cts.Token);
+            _installationResult = await _pipeline.RunAsync(release, progress, _cts.Token);
             _log.Write($"A telepítési pipeline sikeresen visszatért. Verzió: {_installationResult.Version}. A befejező dialógus megnyitása következik.");
             await ShowFinishDialogAsync(_installationResult);
         }
@@ -840,10 +867,10 @@ public sealed partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         RefreshButton.IsEnabled = !busy;
-        InstallButton.IsEnabled = !busy && _licenseAccepted && ReleaseCombo.SelectedIndex >= 0;
+        InstallButton.IsEnabled = !busy && _licenseAccepted && ReleaseCombo.SelectedIndex >= 0
+            && !IsReleaseInstalled(_releases[ReleaseCombo.SelectedIndex]);
         LicenseButton.IsEnabled = !busy;
         ReleaseCombo.IsEnabled = !busy;
-        CloneH2CheckBox.IsEnabled = !busy && CloneH2CheckBox.IsEnabled;
         if (busy)
         {
             ProgressBar.Value = 0;

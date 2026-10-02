@@ -1,4 +1,4 @@
-# M2M XML EDITOR Online Setup – Avalonia bootstrapper
+﻿# M2M XML EDITOR Online Setup – Avalonia bootstrapper
 
 R26-tól a Windows bootstrapper elsődleges implementációja C#/.NET + Avalonia UI.
 A korábbi PowerShell bootstrapper referencia/fallback célból megmarad.
@@ -138,3 +138,50 @@ Bootstrapper verzió: `0.9.18`.
 ## R29.41 – licencelfogadás
 
 A third-party licencek kizárólag a felugró licencablakból érhetők el. Bundled/embedded buildben két külön checkbox szükséges az M2M XML EDITOR, illetve a beágyazott third-party komponensek licencfeltételeinek elfogadásához. A `Tovább a telepítéshez` gomb csak mindkettő bejelölése után aktív. Bootstrapper verzió: `0.9.19`.
+
+## R29.42 – teljes release-katalógus és párhuzamos telepítések
+
+A release-választó a GitHub API-ból lekért összes nem draft SemVer release-t megjeleníti. Régebbi release is telepíthető a meglévő újabb verzió mellé, amennyiben ugyanaz a verzió még nincs telepítve. A már telepített verzió `— telepítve` jelölést kap és nem választható újratelepítésre. Több, azonos telepítési körben telepített verzió esetén az asztali parancsikon neve verziószámot tartalmaz; egyetlen megmaradó verziónál az egyszerű név automatikusan visszaáll. Bootstrapper verzió: `0.9.20`.
+
+
+## R29.43 – normál telepítés és konfigurációmegőrző frissítés
+
+Az alkalmazás mostantól egyetlen, nem verziózott programkönyvtárba települ. Első telepítéskor bármely release választható; meglévő telepítésnél egy másik release ugyanazon a helyen csak a program binárisait cseréli. A meglévő adat/config könyvtár változatlan marad, automatikus migráció és H2-adatmásolás nincs. Bootstrapper verzió: `0.9.21`.
+
+
+## R29.44 - WindowsPlatformService fordítási javítás
+
+Javítva a `WindowsPlatformService.ReadInstalledVersions` `currentSem` lokális változójának definite-assignment hibája (`CS0165`). A telepítési és frissítési működés nem változott. Bootstrapper verzió: `0.9.22`.
+
+
+## R29.45 - automatikus helyi forrás-ZIP és fix adatkönyvtár
+
+A bootstrapper automatikusan felismeri a saját EXE-je mellett található `m2m-xml-editor-<release-tag>.zip` forráscsomagot. Ilyenkor kizárólag a ZIP-ben lévő release telepíthető, GitHub release-lista és Git forráslekérés nem történik, kapcsoló megadása nem szükséges. Az R29.45-ben a ZIP közvetlen Maven builddel került feldolgozásra. Az alkalmazás adat/config könyvtára minden esetben a fix `M2M-XML-EDITOR` gyökér, release-tag alkönyvtár nélkül. Bootstrapper verzió: `0.9.23`.
+
+
+## R29.46 - helyi ZIP build-versioned.cmd
+
+A helyi forrás-ZIP buildje most a repository `build-versioned.cmd` wrapperével indul, ugyanazzal a buildfolyamattal, mint az online Git-forrás esetén. ZIP módban továbbra sincs GitHub release-lekérés, `ls-remote`, clone, fetch vagy checkout. A ZIP validáció a `pom.xml` mellett a `build-versioned.cmd` meglétét is ellenőrzi. Bootstrapper verzió: `0.9.25`.
+
+
+## R29.47 - kötelező ZIP release verzió
+
+ZIP-es offline módban a fájlnév kötelező formátuma `m2m-xml-editor-x.y.z-yyyymmdd-hhmmss[-RCx].zip`. A release verzió kizárólag a ZIP fájlnevéből származik; hibás vagy hiányzó verzió esetén a telepítő leáll. A kicsomagolt forrásban a bootstrapper lokális Git metadata-környezetet hoz létre, és pontosan ezt a release taget helyezi a HEAD-re, mielőtt elindítja a `build-versioned.cmd` scriptet. Bootstrapper verzió: `0.9.25`.
+
+## R29.48 - RELEASE állomány alapú offline verzió
+
+ZIP-es offline módban a release verzió elsődleges és kötelező forrása a ZIP gyökerében található `RELEASE` állomány. A fájlnév már nem tartalmaz kötelező verziót. A `RELEASE` állománynak pontosan egy nem üres `x.y.z-yyyymmdd-hhmmss[-RCx]` formátumú release azonosítót kell tartalmaznia; hiányzó vagy hibás érték esetén a telepítő leáll. A bootstrapper a RELEASE értékéből készíti el a lokális Git taget, ezért a `build-versioned.cmd` is pontosan ezt a verziót látja. Bootstrapper verzió: `0.9.26`.
+
+
+## R29.49 - kötelező eltávolítási megerősítés
+
+Az eltávolítás előtt saját Windows megerősítő ablak jelenik meg. Az `Eltávolítás` gomb csak a megerősítő checkbox bepipálása után aktív; enélkül az IzPack eltávolító nem indul el. Jóváhagyás után az IzPack parancssoros (`-c`) módban, force törlés nélkül fut. Bootstrapper verzió: `0.9.27`.
+
+
+## R29.50 - RELEASE keresése GitHub ZIP projektmappában
+
+ZIP-es offline módban a bootstrapper először a ZIP gyökerében keresi a `RELEASE` állományt. Ha ott nincs, pontosan egy szinttel beljebb is megkeresi, ami támogatja a GitHubról manuálisan letöltött forrás-ZIP-ek tipikus `repository-tag/RELEASE` szerkezetét. Mélyebb szinteken nem keres. Több egy szint mélyen található `RELEASE` esetén a telepítő leáll, mert a projektgyökér nem egyértelmű. Bootstrapper verzió: `0.9.28`.
+
+## R29.51 - Helyi ZIP workspace elkulonitese
+
+ZIP-es offline telepiteskor minden build rovid, egyedi `%TEMP%\m2m-src\<azonosito>` munkakonyvtarat kap. A helyi Git repositoryban `core.longpaths=true` van beallitva, es a `git add` is ezzel a kapcsoloval fut. Ez egyutt kezeli a Windows teljes-utvonal hossza miatt jelentkezo `Filename too long` hibakat, mikozben az egyedi workspace elkeruli a korabbi `.git/objects` maradvanyok torlesebol adodo jogosultsagi hibakat. Bootstrapper verzio: `0.9.30`.
